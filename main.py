@@ -5,11 +5,15 @@ from pydantic import BaseModel, Field
 app = FastAPI()
 
 books = []
-
+members = []
 class BookCreate(BaseModel):
     title: str = Field(min_length=1)
     author: str = Field(min_length=1)
     quantity: int = Field(ge=0)
+    
+class MemberCreate(BaseModel):
+    name:str = Field(min_length=1)
+    email: str = Field(min_length=1)
 
 @app.get("/")
 def home():
@@ -22,10 +26,6 @@ def getBooks():
 
 @app.post("/books")
 def addBook(book:BookCreate):
-    for existing_book in books:
-        if existing_book["id"]==book.id:
-            raise HTTPException(status_code=400, detail="Book ID already exists.")
-    
     new_book = {
         "id": len(books)+1,
         "title": book.title,
@@ -34,7 +34,7 @@ def addBook(book:BookCreate):
     }
     
     books.append(new_book)
-    return {"message": "Book has been added successfully.", "book": book}
+    return {"message": "Book has been added successfully.", "book": new_book}
 
 
 @app.get("/books/{bookid}")
@@ -63,3 +63,47 @@ def deleteBook(bookid: int):
             return {"message": "The book has been successfully deleted."}
 
     raise HTTPException(status_code=404, detail="Book Not Found")
+
+
+
+@app.get("/members")
+def getMembers():
+    return members
+
+@app.post("/members")
+def addMember(member:MemberCreate):
+    newMember={
+        "id" : len(members)+1,
+        "name" : member.name,
+        "email" : member.email
+    }
+    members.append(newMember)
+    return {"message":"Member added successfully","member":newMember}
+
+@app.get("/members/{memberid}")
+def getMember(memberid:int):
+    for member in members:
+        if member["id"]==memberid:
+            return member
+    raise HTTPException(status_code=404, detail="Member Not Found")
+
+@app.put("/members/{memberid}")
+def updateMember(memberid:int,email:str):
+    for member in members:
+        if member["id"]==memberid:
+            member["email"]=email
+            return {"message":"Member Updated Successfully","member":member}
+    raise HTTPException(status_code=404, detail="Member Not Found")
+
+@app.delete("/members/{memberid}")
+def deleteMember(memberid:int):
+    for member in members:
+        if member["id"]==memberid:
+            members.remove(member)
+            return {"message":"Member Deleted Successfully","member":member}
+    raise HTTPException(status_code=404,detail="Member Not Found")
+
+
+
+    
+            
