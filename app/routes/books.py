@@ -1,6 +1,8 @@
-from fastapi import APIRouter, HTTPException
-from storage import books
-from schemas import BookCreate, BookQuantityUpdate, MemberUpdate
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from database import get_db
+from models import Book
+from schemas import BookCreate, BookQuantityUpdate, BookResponse
 
 
 router = APIRouter(
@@ -8,48 +10,50 @@ router = APIRouter(
     tags=["Books"]
 )
 
-@router.get("")
-def get_books():
-    return books
+@router.get("", response_model=list[BookResponse])
+def get_books(db: Session = Depends(get_db)):
+    return db.query(Book).all()
 
 
-@router.post("")
-def add_book(book: BookCreate):
-    new_book = {
-        "id": len(books) + 1,
-        "title": book.title,
-        "author": book.author,
-        "quantity": book.quantity
-    }
-
-    books.append(new_book)
-    return {"message": "Book has been added successfully.", "book": new_book}
-
-
-@router.get("/{book_id}")
-def get_book(book_id: int):
-    for book in books:
-        if book["id"] == book_id:
-            return book
-
-    raise HTTPException(status_code=404, detail="Book Not Found")
+@router.post("", response_model=BookResponse)
+def add_book(book: BookCreate, db: Session = Depends(get_db)):
+    new_book = Book(
+        title=book.title,
+        author=book.author,
+        quantity=book.quantity
+    )
+    db.add(new_book)
+    db.commit()
+    db.refresh(new_book)
+    return new_book
 
 
-@router.put("/{book_id}")
-def update_book_quantity(book_id: int, book_quantity_update: BookQuantityUpdate):
-    for book in books:
-        if book["id"] == book_id:
-            book["quantity"] = book_quantity_update.quantity
-            return {"message": "The quantity of the book has been successfully updated.", "book": book}
+@router.get("/{book_id}", response_model=BookResponse)
+def get_book(book_id: int, db: Session = Depends(get_db)):
+    book = db.query(Book).filter(Book.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=404, detail="Book Not Found")
+    return book
 
-    raise HTTPException(status_code=404, detail="Book Not Found")
+
+@router.put("/{book_id}", response_model=BookResponse)
+def update_book_quantity(book_id: int, book_quantity_update: BookQuantityUpdate, db: Session = Depends(get_db)):
+    book = db.query(Book).filter(Book.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=404, detail="Book Not Found")
+    
+    book.quantity = book_quantity_update.quantity
+    db.commit()
+    db.refresh(book)
+    return book
 
 
 @router.delete("/{book_id}")
-def delete_book(book_id: int):
-    for book in books:
-        if book["id"] == book_id:
-            books.remove(book)
-            return {"message": "The book has been successfully deleted."}
-
-    raise HTTPException(status_code=404, detail="Book Not Found")
+def delete_book(book_id: int, db: Session = Depends(get_db)):
+    book = db.query(Book).filter(Book.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=404, detail="Book Not Found")
+    
+    db.delete(book)
+    db.commit()
+    return {"message": "The book has been successfully deleted."}
